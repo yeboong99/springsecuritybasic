@@ -2,6 +2,9 @@ package com.example.springsecuritybasic.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCrypt;
@@ -15,18 +18,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
+        // 계층 권한 설정을 위해 잠시 주석처리.
+//        http
+//                .authorizeHttpRequests((auth) -> auth.requestMatchers("/", "/login", "/join", "/joinProc", "/main").permitAll()
+//                        .requestMatchers("/admin").hasRole("ADMIN")
+//                        .requestMatchers("/my/**").hasAnyRole("ADMIN", "USER")
+//                        .anyRequest().authenticated()
+//                );
+
+        // 계층 권한 설정. 하단 Hierarchy 설정을 통해 A < B < C의 계층을 가진 권한설정을 해두었다.
         http
-                .authorizeHttpRequests((auth) -> auth.requestMatchers("/", "/login", "/join", "/joinProc", "/main").permitAll()
-                        .requestMatchers("/admin").hasRole("ADMIN")
-                        .requestMatchers("/my/**").hasAnyRole("ADMIN", "USER")
+                .authorizeHttpRequests((auth) -> auth
+                        .requestMatchers("/login").permitAll()
+                        .requestMatchers("/").hasAnyRole("A")
+                        .requestMatchers("/manager").hasAnyRole("B")
+                        .requestMatchers("/admin").hasAnyRole("C")
                         .anyRequest().authenticated()
                 );
 
-        http
-                .formLogin((auth) -> auth.loginPage("/login")
-                        .loginProcessingUrl("/loginProc")
-                        .permitAll()
-                );
+//        http
+//                .formLogin((auth) -> auth.loginPage("/login")
+//                        .loginProcessingUrl("/loginProc")
+//                        .permitAll()
+//                );
 
         // csrf.disable()을 주석처리해 csrf Enable됨. csrf는 토큰검증을 하기때문에 필요한 시스템을 추가해줘야함.
         // 또한 csrf설정이 Enable되었을 때부터는 로그아웃을 반드시 POST 메서드로 진행해야 하는데,
@@ -66,7 +80,22 @@ public class SecurityConfig {
                                                     // newSession() : 로그인 시 새로운 세션 생성
                                                     // changeSessionId() : 로그인 시 동일한 세션에 대한 id만 변경
 
+        // http basic 인증 방식을 위해 상단 formLogin 비활성화. formLogin과는 다른 인증방식.
+        // http basic 인증 방식 : 바디가 아닌 헤더에 아이디, 비밀번호를 담아 검사하는 방식.
+        http
+                .httpBasic(Customizer.withDefaults());
+
         return http.build();
+    }
+
+    // 계층 권한 설정하기.
+    @Bean
+    public RoleHierarchy roleHierarchy() {
+        RoleHierarchyImpl hierarchy = new RoleHierarchyImpl();
+
+        // 여러 계층 간 관계를 표현할 때 개행(\n) 후 이어서 문자열 형태로 적어주면 된다. Spring Security 이므로 앞에 ROLE_ 붙여야함.
+        hierarchy.setHierarchy("ROLE_C > ROLE_B\n" + "ROLE_B > ROLE_A");
+        return hierarchy;
     }
 
     @Bean
